@@ -380,8 +380,16 @@ SS_list=[1 2]; % set size
 block_list=1:2:9; % block indices
 SS=length(SS_list); % N Set size
 Nsubj=length(subj_list); % N subjects </code></pre>
-<p>Then I read the files by looping the filenames.</p>
-<pre class="matlab"><code>for k=block_list % merge blocks
+<p>Besides, in the first version, I was reading datasets by first listing all the files that contain the same pattern in the filenames. Then loading all the files in the list, i.e.,</p>
+<pre class="matlab"><code>%% This is the old version
+filename_t1=dir(&#39;*t1_mix*.mat&#39;);
+filename_t2=dir(&#39;*t2_mix*.mat&#39;);
+%...%
+load(filename_t1(j).name)
+load(filename_t2(j).name)</code></pre>
+<p>This will lead to problems, given that we cannot perfectly control the order of loading the datafiles in the list. So in this refined version, I read the files by looping the filenames.</p>
+<pre class="matlab"><code>%% This is the new version
+for k=block_list % merge blocks
             filename=[&#39;E1c_sub&#39;,num2str(subj_list(j)),&#39;_&#39;,num2str(k+cond2-1),&#39;_t&#39;,num2str(cond2),&#39;_mix.mat&#39;];
             load(filename)
             A_DataMerging1c_EyeMovement;
