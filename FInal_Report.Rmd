@@ -1,0 +1,139 @@
+---
+title: "Final Project Report"
+author: "Tianye Ma"
+date: "3/17/2022"
+output: html_document
+---
+
+## About the Project
+First, a quick review about the project. It is about investigating the relationship between WM precision and the strength of WM-driven attentional capture. The strength of WM-driven attention capture should be compared between different set sizes. And the correlation between WM precision and attention capture should be tested.  
+
+## Pipeline of Analysis (based on Matlab)
+In this new version, I first re-organized the original matlab analysis pipeline so that it is more reproducible. The Github repository doesn't include all the raw datafiles. I only included five subjects as an example. In general, I made several different changes that are listed below,
+
+#### 1. Testing whether the required toolboxes are in the working directories
+```{matlab eval=FALSE}
+% Test required toolboxes
+if exist("MemFit",'file')==0 && isequal(model, 'y')
+    error('Memtoolbox is needed for the analysis')
+end
+if exist("circ_std",'file')==0
+    error('CircStats toolbox is needed for the analysis')
+end
+```
+This is achieved by using the `exist` function in Matlab, which enables us to find whether there is a file/variable/function with a specific name in the working directories. I also added the Matlab toolboxes into the repository.   
+
+#### 2. Reading datasets based on the list of valid datafile names
+I first add the path where I stored the datafiles into the working directories. While at the same time, I listed the indices of valid subjects. In the first version of the pipeline, I put the unqualifed datasets in a separated folder, which could be confusing. So I changed it by putting all the datafiles into the same folder, and using this list in the script to filter them. I also added a word document to record the reason of why filtering the invalid subjects out.      
+```{matlab eval=FALSE}
+% Load data
+addpath('Data_Behav'); % add datafile path
+subj_list=[1 2 3 4 6]; % A list of valid subjects
+SS_list=[1 2]; % set size
+block_list=1:2:9; % block indices
+SS=length(SS_list); % N Set size
+Nsubj=length(subj_list); % N subjects 
+```
+Then I read the files by looping the filenames.  
+```{matlab eval=F}
+for k=block_list % merge blocks
+            filename=['E1c_sub',num2str(subj_list(j)),'_',num2str(k+cond2-1),'_t',num2str(cond2),'_mix.mat'];
+            load(filename)
+            A_DataMerging1c_EyeMovement;
+            search=vertcat(search,search_m);
+end
+```
+
+#### 3. Using `table` to store and manipulate datasets
+```{matlab eval=FALSE}
+memory_dev(memory_dev>180)=360-memory_dev(memory_dev>180);
+seq_dis_pos_all=repmat(seq_dis_pos',8,1);
+seq_con=seq_con';
+seq_gap=seq_gap';
+seq_tar_pos=seq_tar_pos';
+test_ans=test_ans';
+search_m=table(search_result, seq_con, seq_gap, seq_tar_pos,...
+    seq_dis_pos_all, mem_ans, memory_dev, test_ans);
+```
+`table` in Matlab is similar to `tibble` or `data.frame` in R. They all have headings for the columns, which helps increase the reproducibility of the pipeline, given that one might forget or misunderstand the meaning of each column and recruit wrong columns for the analysis. So in this revised version, I first extract the information from the raw datafiles as different variables, then using the `table` function to integrate the variables as a table. Then filtering and merging the datasets is also only based on the table, e.g.  
+```{matlab, eval=F}
+search_match=search_cor(search_cor.seq_con==1,:);
+```
+where search_cor is a table, and I use `.seq_con` to call a specific column in the table. This avoids the hard coding problem to some extent comparing to using indices of columns to call and manipulate variables (matrices).  
+
+#### 4. Ask if I want to store the preprocessed datasets before model fitting
+```{matlab eval=FALSE}
+save_model1=input('Would u like to save the preprocessed dataset before model fitting?(y/n)','s');
+                if isequal(save_model1,'y')
+                    save('preprocessed','search_sort')
+                end
+```
+```{matlab eval=F}
+save_model2=input('Would u like to save the preprocessed dataset before model fitting?(y/n)','s');
+            if isequal(save_model2,'y')
+                save('analysis_modelfree')
+            end
+```
+Given that fitting the models takes much longer time than the other steps in the pipeline, it'll be more convenient to store the preprocessed datasets before model fitting.  
+
+#### 5. Save the processed datasets as .csv files for Visualization purposes
+I'm using R instead of Matlab for visualization in this revised version. Because I believe R is more capable in producing plots based on automation. So I saved the data as .csv files based on the `writetable` function in Matlab.  
+```{matlab, eval=F}
+Vis_ans=input('Would u like to store the results for visualization now?(y/n)','s');
+if isequal(Vis_ans,'y')
+    data_Vis=rmfield(data,'ALLbeta');
+    writetable(struct2table(data_Vis),'Behav.csv')
+end
+```
+
+
+## Visualization (based on R)
+I re-designed the visualization section. Now it is based on ggplot2 (instead of Matlab built-in functions). Because the matlab scripts store the preprocessed datasets into .csv files. I'm now able to use "read.csv" in R to load them and visualize the data based on ggplot2 in R.  
+
+```{r message=FALSE, warning=FALSE}
+# loading packages and datasets
+library(ggplot2)
+library(tidyverse)
+data_haha <- read_csv('Behav.csv')
+```
+
+First, a bar plot about the attentional capture effect at different set sizes.  
+```{r message=FALSE, warning=FALSE}
+# merge datasets
+condition_list <- c('match','match','mismatch','mismatch')
+RT_all <- tibble(Condition=condition_list,
+                 RT_mean=c(mean(data_haha$RT_match_1), mean(data_haha$RT_match_2),
+                      mean(data_haha$RT_dismatch_1), mean(data_haha$RT_dismatch_2)),
+                 RT_se=c(sd(data_haha$RT_match_1), sd(data_haha$RT_match_2),
+                      sd(data_haha$RT_dismatch_1), sd(data_haha$RT_dismatch_2))
+                      /sqrt(dim(data_haha)[1]),
+                 SS=c(1,2,1,2)
+                 )
+RT_all$SS <- as.factor(RT_all$SS)
+# bar plots
+haha <- RT_all %>% ggplot(aes(x=SS, y=RT_mean, fill=Condition)) + 
+  geom_bar(stat='identity',color='black',position=position_dodge()) +
+  geom_errorbar(aes(ymin=RT_mean-RT_se, ymax=RT_mean+RT_se), 
+                width=.2, position=position_dodge(.9)) +
+  labs(x="Set Size", y="Mean RT (sec)") +
+  theme(panel.background=element_blank())
+haha
+```
+  
+Then overlapped scatterplots for the relationship between WM deviations and RT differences at different set sizes.  
+```{r message=FALSE, warning=FALSE}
+# merge data
+Nsubj=dim(data_haha)[1];
+data_haha_scatter <- tibble(mdev=c(data_haha$mDev_1, data_haha$mDev_2),
+                            capture=c(data_haha$RT_match_1-data_haha$RT_dismatch_1,   data_haha$RT_match_2-data_haha$RT_dismatch_2),
+                            SS=c(rep('1',Nsubj),rep('2',Nsubj)))
+# plot
+haha2 <- data_haha_scatter %>% ggplot(aes(x=mdev, y=capture, color=SS, shape=SS)) +
+  geom_point() +
+  geom_smooth(method=lm, se=F, fullrange=T) +
+  labs(x="Mean Memory Deviation (deg)", y="Mean RT Difference (sec)") +
+  theme_classic()
+haha2
+```
+
+Note that the raw memory deviation as SS 2 should be larger than the memory deviation at SS 1. 

@@ -164,4 +164,4 @@ Psac_Tar=TargetTrial./EyeQualifiedTrial;
 Psac_Dis=DistrTrial./EyeQualifiedTrial;
 Psac_Nontar=NontarTrial./EyeQualifiedTrial;
 %%
-save(fullfile(['Behav_Result3' date]))
+save(fullfile(['EyeMovement_Result' date]))
